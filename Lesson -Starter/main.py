@@ -95,6 +95,17 @@ class SurvivorGame(arcade.Window):
         arcade.draw_lbwh_rectangle_filled(20, 525, int(200 * xp_ratio), 10, arcade.color.ELECTRIC_CYAN)
 
         # 3. Level-Up Modal
+        if self.current_state == STATE_LEVEL_UP:
+            arcade.draw_lbwh_rectangle_filled(SCREEN_WIDTH//2-230, SCREEN_HEIGHT//2-90,460,200,(20,25,35,240))
+            self.upgrade_title.draw()
+            self.option1.draw()
+            self.option2.draw()
+            self.option3.draw()
+
+        elif self.current_state == STATE_GAME_OVER:
+            arcade.draw_lbwh_rectangle_filled(SCREEN_WIDTH//2-350, SCREEN_HEIGHT//2-90,700,200,(100,0,0,240))
+            self.game_over_title.draw()
+            self.game_over_subtitle.draw()
         
 
     def on_update(self, delta_time):
@@ -116,15 +127,40 @@ class SurvivorGame(arcade.Window):
         
 
         # Cooldown ticks
+        if self.fire_cooldown > 0:
+            self.fire_cooldown -= delta_time
+
+        if self.damage_cooldown > 0:
+            self.damage_cooldown -= delta_time
        
 
         # Wave Spawner: 1 enemy every 1.4 seconds
-        
+        self.spawn_timer += delta_time
+        if self.spawn_timer >= 1.4:
+            self.spawn_timer = 0.0
+            self.spawn_enemy()
 
         # Bullet-Enemy collisions
+        for bullet in self.bullet_list:
+            hit_enemy = arcade.check_for_collision_with_list(bullet, self.enemy_list)
+            if hit_enemy:
+                bullet.remove_from_sprite_list()
+                for enemy in hit_enemy:
+                    #spawning explosion particles
+                    for i in range(8):
+                        self.particle_list.append(ExplosionParticle(enemy.center_x, enemy.center_y))
+                    
+                
         
         # Enemy-Player collisions
-        
+        hit_player = arcade.check_for_collision_with_list(self.player, self.enemy_list)
+        if hit_player and self.damage_cooldown <= 0.0:
+            self.player.health -= 10
+            self.damage_cooldown = 0.5
+            
+            if self.player.health <= 0:
+                self.player.health = 0
+                self.current_state = STATE_GAME_OVER
 
     def spawn_enemy(self):
         side = random.choice(["top", "bottom", "left", "right"])
@@ -141,7 +177,13 @@ class SurvivorGame(arcade.Window):
         self.enemy_list.append(new_enemy)
 
     def on_mouse_press(self, x, y, button, modifiers):
-        pass
+        if self.current_state != STATE_PLAYING:
+            return
+        effective_cooldown = 0.25/self.player.fire_rate_multiplier
+        if button == arcade.MOUSE_BUTTON_LEFT and self.fire_cooldown <= 0:
+            new_bullet = Projectile(start_x=self.player.center_x, start_y=self.player.center_y, target_x=x, target_y=y)
+            self.bullet_list.append(new_bullet)
+            self.fire_cooldown = effective_cooldown
 
     def on_key_press(self, key, modifiers):
         # Level-Up Selection Handling
